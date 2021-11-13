@@ -42,7 +42,7 @@ parser.add_argument('--start_epoch', default=0, type=int, metavar='N', help='man
 parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 # Acceleration
 parser.add_argument('--ngpu', type=int, default=1, help='0 = CPU.')
-parser.add_argument('--workers', type=int, default=2, help='number of data loading workers (default: 2)')
+parser.add_argument('--workers', type=int, default=0, help='number of data loading workers (default: 2)')
 # random seed
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 # compress rate
@@ -112,8 +112,8 @@ def main():
         [transforms.ToTensor(), transforms.Normalize(mean, std)])
 
     if args.dataset == 'cifar10':
-        train_data = dset.CIFAR10(args.data_path, train=True, transform=train_transform, download=True)
-        test_data = dset.CIFAR10(args.data_path, train=False, transform=test_transform, download=True)
+        train_data = dset.CIFAR10(args.data_path, train=True, transform=train_transform, download=False)
+        test_data = dset.CIFAR10(args.data_path, train=False, transform=test_transform, download=False)
         num_classes = 10
     elif args.dataset == 'cifar100':
         train_data = dset.CIFAR100(args.data_path, train=True, transform=train_transform, download=True)
@@ -290,7 +290,8 @@ def train(train_loader, model, criterion, optimizer, epoch, log, m):
         data_time.update(time.time() - end)
 
         if args.use_cuda:
-            target = target.cuda(async=True)
+            #target = target.cuda(async=True)
+            target = target.cuda(non_blocking=True) # python3.7
             input = input.cuda()
         input_var = torch.autograd.Variable(input)
         target_var = torch.autograd.Variable(target)
@@ -301,9 +302,9 @@ def train(train_loader, model, criterion, optimizer, epoch, log, m):
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
+        top5.update(prec5.item(), input.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -343,10 +344,12 @@ def validate(val_loader, model, criterion, log):
 
     for i, (input, target) in enumerate(val_loader):
         if args.use_cuda:
-            target = target.cuda(async=True)
+            target = target.cuda(non_blocking=True)
             input = input.cuda()
-        input_var = torch.autograd.Variable(input, volatile=True)
-        target_var = torch.autograd.Variable(target, volatile=True)
+
+        with torch.no_grad():
+            input_var = torch.autograd.Variable(input)
+            target_var = torch.autograd.Variable(target)
 
         # compute output
         output = model(input_var)
@@ -354,9 +357,9 @@ def validate(val_loader, model, criterion, log):
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
+        top5.update(prec5.item(), input.size(0))
 
     print_log('  **Test** Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} Error@1 {error1:.3f}'.format(top1=top1, top5=top5,
                                                                                                    error1=100 - top1.avg),
@@ -404,7 +407,7 @@ def accuracy(output, target, topk=(1,)):
 
     res = []
     for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
+        correct_k = correct[:k].contiguous().view(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
