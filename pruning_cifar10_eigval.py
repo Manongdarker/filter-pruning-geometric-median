@@ -556,53 +556,53 @@ class Mask:
             pass
         return codebook
 
-        # optimize for cov eig
-        def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
-            codebook = np.ones(length)
-            if len(weight_torch.size()) == 4:
-                filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
-                similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
-                weight_vec = weight_torch.view(weight_torch.size()[0], -1)
+    # optimize for cov eig
+    def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
+        codebook = np.ones(length)
+        if len(weight_torch.size()) == 4:
+            filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
+            similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
+            weight_vec = weight_torch.view(weight_torch.size()[0], -1)
 
-                if dist_type == "l2" or "cos":
-                    norm = torch.norm(weight_vec, 2, 1)
-                    norm_np = norm.cpu().numpy()
-                elif dist_type == "l1":
-                    norm = torch.norm(weight_vec, 1, 1)
-                    norm_np = norm.cpu().numpy()
-                filter_small_index = []
-                filter_large_index = []
-                filter_large_index = norm_np.argsort()[filter_pruned_num:]
-                filter_small_index = norm_np.argsort()[:filter_pruned_num]
+            if dist_type == "l2" or "cos":
+                norm = torch.norm(weight_vec, 2, 1)
+                norm_np = norm.cpu().numpy()
+            elif dist_type == "l1":
+                norm = torch.norm(weight_vec, 1, 1)
+                norm_np = norm.cpu().numpy()
+            filter_small_index = []
+            filter_large_index = []
+            filter_large_index = norm_np.argsort()[filter_pruned_num:]
+            filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
-                # distance using numpy function
-                if args.use_cuda:
-                    indices = torch.LongTensor(filter_large_index).cuda()
-                else:
-                    indices = torch.LongTensor(filter_large_index).cpu()
-                weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
-                cov_matrix = np.cov(weight_vec_after_norm)
-                e_vals, e_vecs = np.linalg.eig(cov_matrix)
-
-                # for distance similar: get the filter index with largest similarity == small distance
-                similar_large_index = e_vals.argsort()[similar_pruned_num:]
-                similar_small_index = e_vals.argsort()[:  similar_pruned_num]
-                similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
-
-                print('filter_large_index', filter_large_index)
-                print('filter_small_index', filter_small_index)
-                print('eig vals', e_vals)
-                print('similar_large_index', similar_large_index)
-                print('similar_small_index', similar_small_index)
-                print('similar_index_for_filter', similar_index_for_filter)
-                kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
-                for x in range(0, len(similar_index_for_filter)):
-                    codebook[
-                    similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
-                print("similar index done")
+            # distance using numpy function
+            if args.use_cuda:
+                indices = torch.LongTensor(filter_large_index).cuda()
             else:
-                pass
-            return codebook
+                indices = torch.LongTensor(filter_large_index).cpu()
+            weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
+            cov_matrix = np.cov(weight_vec_after_norm)
+            e_vals, e_vecs = np.linalg.eig(cov_matrix)
+
+            # for distance similar: get the filter index with largest similarity == small distance
+            similar_large_index = e_vals.argsort()[similar_pruned_num:]
+            similar_small_index = e_vals.argsort()[:  similar_pruned_num]
+            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+
+            print('filter_large_index', filter_large_index)
+            print('filter_small_index', filter_small_index)
+            print('eig vals', e_vals)
+            print('similar_large_index', similar_large_index)
+            print('similar_small_index', similar_small_index)
+            print('similar_index_for_filter', similar_index_for_filter)
+            kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
+            for x in range(0, len(similar_index_for_filter)):
+                codebook[
+                similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
+            print("similar index done")
+        else:
+            pass
+        return codebook
 
     def convert2tensor(self, x):
         x = torch.FloatTensor(x)
