@@ -246,7 +246,7 @@ def main():
         if epoch % args.epoch_prune == 0 or epoch == args.epochs - 1:
             m.model = net
             m.if_zero()
-            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type)
+            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type ,1.0 * epoch / args.epochs )
             m.do_mask()
             m.do_similar_mask()
             m.if_zero()
@@ -595,7 +595,7 @@ class Mask:
                     select.append(indexi[np.argmax(norm_k[indexi])])
                 all_index = [x for x in range(0,weight_torch.size()[0])]
                 not_selsct = [x for x in all_index  if x not in select]
-                
+
             similar_large_index = select
             similar_small_index = not_selsct
 
@@ -651,7 +651,7 @@ class Mask:
 
     #        self.mask_index =  [x for x in range (0,330,3)]
 
-    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type):
+    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type , epoch_time = 0):
         self.init_rate(rate_norm_per_layer, rate_dist_per_layer)
         for index, item in enumerate(self.model.parameters()):
             if index in self.mask_index:
@@ -667,8 +667,11 @@ class Mask:
                 #     self.get_filter_index(item.data, self.compress_rate[index], self.model_length[index])
 
                 # mask for distance criterion
+                scale = epoch_time * 1.5
+                scale = min(1, scale)
+
                 self.similar_matrix[index] = self.get_filter_importance(item.data, self.compress_rate[index],
-                                                                     self.distance_rate[index],
+                                                                     self.distance_rate[index] * scale,
                                                                      self.model_length[index], dist_type=dist_type)
                 self.similar_matrix[index] = self.convert2tensor(self.similar_matrix[index])
                 if args.use_cuda:
