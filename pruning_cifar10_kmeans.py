@@ -557,52 +557,63 @@ class Mask:
         return codebook
 
         # optimize for cov eig
-        def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
-            codebook = np.ones(length)
-            if len(weight_torch.size()) == 4:
-                filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
-                similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
-                weight_vec = weight_torch.view(weight_torch.size()[0], -1)
+    def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
+        codebook = np.ones(length)
+        if len(weight_torch.size()) == 4:
+            filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
+            similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
+            weight_vec = weight_torch.view(weight_torch.size()[0], -1)
 
-                if dist_type == "l2" or "cos":
-                    norm = torch.norm(weight_vec, 2, 1)
-                    norm_np = norm.cpu().numpy()
-                elif dist_type == "l1":
-                    norm = torch.norm(weight_vec, 1, 1)
-                    norm_np = norm.cpu().numpy()
-                filter_small_index = []
-                filter_large_index = []
-                filter_large_index = norm_np.argsort()[filter_pruned_num:]
-                filter_small_index = norm_np.argsort()[:filter_pruned_num]
+            if dist_type == "l2" or "cos":
+                norm = torch.norm(weight_vec, 2, 1)
+                norm_np = norm.cpu().numpy()
+            elif dist_type == "l1":
+                norm = torch.norm(weight_vec, 1, 1)
+                norm_np = norm.cpu().numpy()
+            filter_small_index = []
+            filter_large_index = []
+            filter_large_index = norm_np.argsort()[filter_pruned_num:]
+            filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
-                # distance using numpy function
-                if args.use_cuda:
-                    indices = torch.LongTensor(filter_large_index).cuda()
-                else:
-                    indices = torch.LongTensor(filter_large_index).cpu()
-                weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
-                cov_matrix = np.cov(weight_vec_after_norm)
-                e_vals, e_vecs = np.linalg.eig(cov_matrix)
-
-                # for distance similar: get the filter index with largest similarity == small distance
-                similar_large_index = e_vals.argsort()[similar_pruned_num:]
-                similar_small_index = e_vals.argsort()[:  similar_pruned_num]
-                similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
-
-                print('filter_large_index', filter_large_index)
-                print('filter_small_index', filter_small_index)
-                print('eig vals', e_vals)
-                print('similar_large_index', similar_large_index)
-                print('similar_small_index', similar_small_index)
-                print('similar_index_for_filter', similar_index_for_filter)
-                kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
-                for x in range(0, len(similar_index_for_filter)):
-                    codebook[
-                    similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
-                print("similar index done")
+            # distance using numpy function
+            if args.use_cuda:
+                indices = torch.LongTensor(filter_large_index).cuda()
             else:
-                pass
-            return codebook
+                indices = torch.LongTensor(filter_large_index).cpu()
+            weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
+            norm_1 = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1).cpu().numpy()
+            select = []
+            not_selsct = []
+            if len( np.argwhere(norm_1 <= 0).flatten()) >= similar_pruned_num:
+                select = norm_1.argsort()[similar_pruned_num:]
+                not_selsct = norm_1.argsort()[:similar_pruned_num]
+            else:
+                cls , cents = kmeans(weight_vec_after_norm , k = weight_torch.size()[0] - similar_pruned_num )
+                norm_k = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1)
+                for i in range(0,weight_torch.size()[0] - similar_pruned_num ):
+                    indexi = (np.argwhere(cls == i)).flatten()
+                    select.append(indexi[np.argmax(norm_k[indexi])])
+                all_index = [x for x in range(0,weight_torch.size()[0])]
+                not_selsct = [x for x in all_index  if x not in select]
+                
+            similar_large_index = select
+            similar_small_index = not_selsct
+
+            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+
+            print('filter_large_index', filter_large_index)
+            print('filter_small_index', filter_small_index)
+            print('similar_large_index', similar_large_index)
+            print('similar_small_index', similar_small_index)
+            print('similar_index_for_filter', similar_index_for_filter)
+            kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
+            for x in range(0, len(similar_index_for_filter)):
+                codebook[
+                similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
+            print("similar index done")
+        else:
+            pass
+        return codebook
 
     def convert2tensor(self, x):
         x = torch.FloatTensor(x)
@@ -700,7 +711,35 @@ class Mask:
 
                 print(
                     "number of nonzero weight is %d, zero is %d" % (np.count_nonzero(b), len(b) - np.count_nonzero(b)))
+def kmeans(data, k=3, normalize=False, limit=500):
+    # normalize 数据
+    if normalize:
+        stats = (data.mean(axis=0), data.std(axis=0))
+        data = (data - stats[0]) / stats[1]
 
+    # 直接将前K个数据当成簇中心
+    centers = data[:k]
+
+    for i in range(limit):
+        # 首先利用广播机制计算每个样本到簇中心的距离，之后根据最小距离重新归类
+        classifications = np.argmin(((data[:, :, None] - centers.T[None, :, :]) ** 2).sum(axis=1), axis=1)
+        # 对每个新的簇计算簇中心
+        new_centers = np.array([data[classifications == j, :].mean(axis=0) for j in range(k)])
+
+        # 簇中心不再移动的话，结束循环
+        if (new_centers == centers).all():
+            break
+        else:
+            centers = new_centers
+    else:
+        # 如果在for循环里正常结束，下面不会执行
+        raise RuntimeError(f"Clustering algorithm did not complete within {limit} iterations")
+
+    # 如果normalize了数据，簇中心会反向 scaled 到原来大小
+    if normalize:
+        centers = centers * stats[1] + stats[0]
+
+    return classifications, centers
 
 
 if __name__ == '__main__':
