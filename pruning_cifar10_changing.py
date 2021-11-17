@@ -41,7 +41,7 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 # Acceleration
-parser.add_argument('--ngpu', type=int, default=0, help='0 = CPU.')
+parser.add_argument('--ngpu', type=int, default=1, help='0 = CPU.')
 parser.add_argument('--workers', type=int, default=0, help='number of data loading workers (default: 2)')
 # random seed
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -112,7 +112,7 @@ def main():
         [transforms.ToTensor(), transforms.Normalize(mean, std)])
 
     if args.dataset == 'cifar10':
-        train_data = dset.CIFAR10(args.data_path, train=True, transform=train_transform, download=True)
+        train_data = dset.CIFAR10(args.data_path, train=True, transform=train_transform, download=False)
         test_data = dset.CIFAR10(args.data_path, train=False, transform=test_transform, download=False)
         num_classes = 10
     elif args.dataset == 'cifar100':
@@ -246,7 +246,7 @@ def main():
         if epoch % args.epoch_prune == 0 or epoch == args.epochs - 1:
             m.model = net
             m.if_zero()
-            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type)
+            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type , 1.0 * epoch / args.epochs)
             m.do_mask()
             m.do_similar_mask()
             m.if_zero()
@@ -521,17 +521,11 @@ class Mask:
             # similar_sum = torch.sum(torch.abs(similar_matrix), 0).numpy()
 
             # distance using numpy function
-            if args.use_cuda:
-                indices = torch.LongTensor(filter_large_index).cuda()
-            else:
-                indices = torch.LongTensor(filter_large_index).cpu()
+            indices = torch.LongTensor(filter_large_index).cuda()
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
             # for euclidean distance
             if dist_type == "l2" or "l1":
                 similar_matrix = distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'euclidean')
-                cov_matrix = np.cov(weight_vec_after_norm)
-                e_vals , e_vecs = np.linalg.eig(cov_matrix)
-
             elif dist_type == "cos":  # for cos similarity
                 similar_matrix = 1 - distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'cosine')
             similar_sum = np.sum(np.abs(similar_matrix), axis=0)
@@ -544,54 +538,6 @@ class Mask:
             print('filter_large_index', filter_large_index)
             print('filter_small_index', filter_small_index)
             print('similar_sum', similar_sum)
-            print('similar_large_index', similar_large_index)
-            print('similar_small_index', similar_small_index)
-            print('similar_index_for_filter', similar_index_for_filter)
-            kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
-            for x in range(0, len(similar_index_for_filter)):
-                codebook[
-                similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
-            print("similar index done")
-        else:
-            pass
-        return codebook
-
-    # optimize for cov eig
-    def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
-        codebook = np.ones(length)
-        if len(weight_torch.size()) == 4:
-            filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
-            similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
-            weight_vec = weight_torch.view(weight_torch.size()[0], -1)
-
-            if dist_type == "l2" or "cos":
-                norm = torch.norm(weight_vec, 2, 1)
-                norm_np = norm.cpu().numpy()
-            elif dist_type == "l1":
-                norm = torch.norm(weight_vec, 1, 1)
-                norm_np = norm.cpu().numpy()
-            filter_small_index = []
-            filter_large_index = []
-            filter_large_index = norm_np.argsort()[filter_pruned_num:]
-            filter_small_index = norm_np.argsort()[:filter_pruned_num]
-
-            # distance using numpy function
-            if args.use_cuda:
-                indices = torch.LongTensor(filter_large_index).cuda()
-            else:
-                indices = torch.LongTensor(filter_large_index).cpu()
-            weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
-            cov_matrix = np.cov(weight_vec_after_norm)
-            e_vals, e_vecs = np.linalg.eig(cov_matrix)
-
-            # for distance similar: get the filter index with largest similarity == small distance
-            similar_large_index = e_vals.argsort()[similar_pruned_num:]
-            similar_small_index = e_vals.argsort()[:  similar_pruned_num]
-            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
-
-            print('filter_large_index', filter_large_index)
-            print('filter_small_index', filter_small_index)
-            print('eig vals', e_vals)
             print('similar_large_index', similar_large_index)
             print('similar_small_index', similar_small_index)
             print('similar_index_for_filter', similar_index_for_filter)
@@ -640,7 +586,7 @@ class Mask:
 
     #        self.mask_index =  [x for x in range (0,330,3)]
 
-    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type):
+    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type, epoch_time = 0):
         self.init_rate(rate_norm_per_layer, rate_dist_per_layer)
         for index, item in enumerate(self.model.parameters()):
             if index in self.mask_index:
@@ -656,8 +602,14 @@ class Mask:
                 #     self.get_filter_index(item.data, self.compress_rate[index], self.model_length[index])
 
                 # mask for distance criterion
-                self.similar_matrix[index] = self.get_filter_importance(item.data, self.compress_rate[index],
-                                                                     self.distance_rate[index],
+                scale1 = (epoch_time - 0.3) * 5
+                scale1 = max(scale1 , 0)
+                scale1 = min(scale1, 1)
+
+                com = self.compress_rate[index]
+                new_compress = com + (1 - scale1)*(1 - com)
+                self.similar_matrix[index] = self.get_filter_similar(item.data, new_compress,
+                                                                     self.distance_rate[index] *  scale1,
                                                                      self.model_length[index], dist_type=dist_type)
                 self.similar_matrix[index] = self.convert2tensor(self.similar_matrix[index])
                 if args.use_cuda:
@@ -700,7 +652,6 @@ class Mask:
 
                 print(
                     "number of nonzero weight is %d, zero is %d" % (np.count_nonzero(b), len(b) - np.count_nonzero(b)))
-
 
 
 if __name__ == '__main__':
