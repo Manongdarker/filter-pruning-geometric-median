@@ -583,21 +583,24 @@ class Mask:
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
             norm_1 = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1).cpu().numpy()
             select = []
-            not_selsct = []
-            if len( np.argwhere(norm_1 <= 0).flatten()) >= similar_pruned_num:
+            not_selcet = []
+            norm_val0 = np.argwhere(norm_1 <= 0).flatten()
+            if len( norm_val0 ) >= similar_pruned_num:
                 select = norm_1.argsort()[similar_pruned_num:]
-                not_selsct = norm_1.argsort()[:similar_pruned_num]
+                not_selcet = norm_1.argsort()[:similar_pruned_num]
             else:
-                cls , cents = kmeans(weight_vec_after_norm , k = weight_torch.size()[0] - similar_pruned_num )
-                norm_k = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1)
+                # 0 向量不参与
+                new_weight_vec_after_norm = weight_vec_after_norm[norm_val0 : ]
+                cls , cents = kmeans(new_weight_vec_after_norm , k = weight_torch.size()[0] - similar_pruned_num )
+                norm_k = torch.norm(torch.Tensor(new_weight_vec_after_norm), 2, 1)
                 for i in range(0,weight_torch.size()[0] - similar_pruned_num ):
                     indexi = (np.argwhere(cls == i)).flatten()
-                    select.append(indexi[np.argmax(norm_k[indexi])])
+                    select.append(indexi[np.argmax(norm_k[indexi])] + norm_val0)
                 all_index = [x for x in range(0,weight_torch.size()[0])]
-                not_selsct = [x for x in all_index  if x not in select]
+                not_selcet = [x for x in all_index  if x not in select]
 
             similar_large_index = select
-            similar_small_index = not_selsct
+            similar_small_index = not_selcet
 
             similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
 
