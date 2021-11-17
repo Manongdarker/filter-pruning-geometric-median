@@ -246,7 +246,7 @@ def main():
         if epoch % args.epoch_prune == 0 or epoch == args.epochs - 1:
             m.model = net
             m.if_zero()
-            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type)
+            m.init_mask(args.rate_norm, args.rate_dist, args.dist_type ,1.0 * epoch / args.epochs )
             m.do_mask()
             m.do_similar_mask()
             m.if_zero()
@@ -556,7 +556,7 @@ class Mask:
             pass
         return codebook
 
-    # optimize for cov eig
+        # optimize for cov eig
     def get_filter_importance(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
         codebook = np.ones(length)
         if len(weight_torch.size()) == 4:
@@ -581,17 +581,28 @@ class Mask:
             else:
                 indices = torch.LongTensor(filter_large_index).cpu()
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
-            cov_matrix = np.cov(weight_vec_after_norm)
-            e_vals, e_vecs = np.linalg.eig(cov_matrix)
+            norm_1 = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1).cpu().numpy()
+            select = []
+            not_selsct = []
+            if len( np.argwhere(norm_1 <= 0).flatten()) >= similar_pruned_num:
+                select = norm_1.argsort()[similar_pruned_num:]
+                not_selsct = norm_1.argsort()[:similar_pruned_num]
+            else:
+                cls , cents = kmeans(weight_vec_after_norm , k = weight_torch.size()[0] - similar_pruned_num )
+                norm_k = torch.norm(torch.Tensor(weight_vec_after_norm), 2, 1)
+                for i in range(0,weight_torch.size()[0] - similar_pruned_num ):
+                    indexi = (np.argwhere(cls == i)).flatten()
+                    select.append(indexi[np.argmax(norm_k[indexi])])
+                all_index = [x for x in range(0,weight_torch.size()[0])]
+                not_selsct = [x for x in all_index  if x not in select]
 
-            # for distance similar: get the filter index with largest similarity == small distance
-            similar_large_index = e_vals.argsort()[similar_pruned_num:]
-            similar_small_index = e_vals.argsort()[:  similar_pruned_num]
+            similar_large_index = select
+            similar_small_index = not_selsct
+
             similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
 
             print('filter_large_index', filter_large_index)
             print('filter_small_index', filter_small_index)
-            print('eig vals', e_vals)
             print('similar_large_index', similar_large_index)
             print('similar_small_index', similar_small_index)
             print('similar_index_for_filter', similar_index_for_filter)
@@ -640,7 +651,7 @@ class Mask:
 
     #        self.mask_index =  [x for x in range (0,330,3)]
 
-    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type):
+    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type , epoch_time = 0):
         self.init_rate(rate_norm_per_layer, rate_dist_per_layer)
         for index, item in enumerate(self.model.parameters()):
             if index in self.mask_index:
@@ -656,8 +667,11 @@ class Mask:
                 #     self.get_filter_index(item.data, self.compress_rate[index], self.model_length[index])
 
                 # mask for distance criterion
+                scale = epoch_time * 1.5
+                scale = min(1, scale)
+
                 self.similar_matrix[index] = self.get_filter_importance(item.data, self.compress_rate[index],
-                                                                     self.distance_rate[index],
+                                                                     self.distance_rate[index] * scale,
                                                                      self.model_length[index], dist_type=dist_type)
                 self.similar_matrix[index] = self.convert2tensor(self.similar_matrix[index])
                 if args.use_cuda:
@@ -700,7 +714,35 @@ class Mask:
 
                 print(
                     "number of nonzero weight is %d, zero is %d" % (np.count_nonzero(b), len(b) - np.count_nonzero(b)))
+def kmeans(data, k=3, normalize=False, limit=500):
+    # normalize 数据
+    if normalize:
+        stats = (data.mean(axis=0), data.std(axis=0))
+        data = (data - stats[0]) / stats[1]
 
+    # 直接将前K个数据当成簇中心
+    centers = data[:k]
+
+    for i in range(limit):
+        # 首先利用广播机制计算每个样本到簇中心的距离，之后根据最小距离重新归类
+        classifications = np.argmin(((data[:, :, None] - centers.T[None, :, :]) ** 2).sum(axis=1), axis=1)
+        # 对每个新的簇计算簇中心
+        new_centers = np.array([data[classifications == j, :].mean(axis=0) for j in range(k)])
+
+        # 簇中心不再移动的话，结束循环
+        if (new_centers == centers).all():
+            break
+        else:
+            centers = new_centers
+    else:
+        # 如果在for循环里正常结束，下面不会执行
+        raise RuntimeError(f"Clustering algorithm did not complete within {limit} iterations")
+
+    # 如果normalize了数据，簇中心会反向 scaled 到原来大小
+    if normalize:
+        centers = centers * stats[1] + stats[0]
+
+    return classifications, centers
 
 
 if __name__ == '__main__':
