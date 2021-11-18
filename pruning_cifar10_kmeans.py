@@ -590,12 +590,12 @@ class Mask:
                 not_selcet = norm_1.argsort()[:similar_pruned_num]
             else:
                 # 0 向量不参与
-                new_weight_vec_after_norm = weight_vec_after_norm[norm_val0 : ]
+                new_weight_vec_after_norm = weight_vec_after_norm[len( norm_val0 ) : ]
                 cls , cents = kmeans(new_weight_vec_after_norm , k = weight_torch.size()[0] - similar_pruned_num )
                 norm_k = torch.norm(torch.Tensor(new_weight_vec_after_norm), 2, 1)
                 for i in range(0,weight_torch.size()[0] - similar_pruned_num ):
                     indexi = (np.argwhere(cls == i)).flatten()
-                    select.append(indexi[np.argmax(norm_k[indexi])] + norm_val0)
+                    select.append(indexi[np.argmax(norm_k[indexi])] + len( norm_val0 ))
                 all_index = [x for x in range(0,weight_torch.size()[0])]
                 not_selcet = [x for x in all_index  if x not in select]
 
