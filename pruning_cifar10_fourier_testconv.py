@@ -182,18 +182,6 @@ def main():
 
     val_acc_1, val_los_1 = validate(test_loader, net, criterion, log)
 
-    # print(" accu before is: %.3f %%" % val_acc_1)
-    # m.model = net
-    # #
-    # m.init_mask(1.0, 0.0, args.dist_type,0,0)
-    # m.do_mask()
-    # m.do_similar_mask()
-    # net = m.model
-    # #    m.if_zero()
-    # if args.use_cuda:
-    #     net = net.cuda()
-    # val_acc_2, val_los_2 = validate(test_loader, net, criterion, log)
-    # print(" accu after 0-0 is: %s %%" % val_acc_2)
     m.init_rate(1,0)
     total = dict()
     import matplotlib.pyplot as plt
@@ -221,17 +209,10 @@ def main():
                 plt.close()
                 plt2.plot(total[index])
     plt2.savefig("./result/total_im.jpg")
+    import pickle as pk
+    pk.dump(total,open('result/v2.bin'),0)
 
 
-
-    m.init_mask(args.rate_norm, args.rate_dist, args.dist_type)
-    m.do_mask()
-    m.do_similar_mask()
-    net = m.model
-    if args.use_cuda:
-        net = net.cuda()
-    val_acc_2, val_los_2 = validate(test_loader, net, criterion, log)
-    print(" accu after is: %s %%" % val_acc_2)
 
 
 
