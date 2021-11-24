@@ -1,0 +1,198 @@
+save path : ./result/res20_train_scrath_fourier
+{'arch': 'resnet20', 'batch_size': 128, 'data_path': '.\\data\\cifar10', 'dataset': 'cifar10', 'decay': 0.0005, 'dist_type': 'l2', 'epoch_prune': 1, 'epochs': 200, 'evaluate': False, 'gammas': [0.2, 0.2, 0.2], 'layer_begin': 0, 'layer_end': 54, 'layer_inter': 3, 'learning_rate': 0.1, 'manualSeed': 7919, 'momentum': 0.9, 'ngpu': 1, 'pretrain_path': './baseline/resnet20_cifar10_checkpoint.pth.tar', 'print_freq': 200, 'rate_dist': 0.4, 'rate_norm': 1.0, 'resume': '', 'save_path': './result/res20_train_scrath_fourier', 'schedule': [60, 120, 160], 'start_epoch': 0, 'use_cuda': True, 'use_pretrain': True, 'use_state_dict': True, 'workers': 0}
+Random Seed: 7919
+python version : 3.7.4 (default, Aug  9 2019, 18:34:13) [MSC v.1915 64 bit (AMD64)]
+torch  version : 1.10.0
+cudnn  version : 7605
+Norm Pruning Rate: 1.0
+Distance Pruning Rate: 0.4
+Layer Begin: 0
+Layer End: 54
+Layer Inter: 3
+Epoch prune: 1
+use pretrain: True
+Pretrain path: ./baseline/resnet20_cifar10_checkpoint.pth.tar
+Dist type: l2
+=> creating model 'resnet20'
+=> network :
+ CifarResNet(
+  (conv_1_3x3): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+  (bn_1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (stage_1): Sequential(
+    (0): ResNetBasicblock(
+      (conv_a): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (1): ResNetBasicblock(
+      (conv_a): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (2): ResNetBasicblock(
+      (conv_a): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+  (stage_2): Sequential(
+    (0): ResNetBasicblock(
+      (conv_a): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (downsample): DownsampleA(
+        (avg): AvgPool2d(kernel_size=1, stride=2, padding=0)
+      )
+    )
+    (1): ResNetBasicblock(
+      (conv_a): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (2): ResNetBasicblock(
+      (conv_a): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+  (stage_3): Sequential(
+    (0): ResNetBasicblock(
+      (conv_a): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (downsample): DownsampleA(
+        (avg): AvgPool2d(kernel_size=1, stride=2, padding=0)
+      )
+    )
+    (1): ResNetBasicblock(
+      (conv_a): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (2): ResNetBasicblock(
+      (conv_a): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_a): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv_b): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn_b): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+  (avgpool): AvgPool2d(kernel_size=8, stride=8, padding=0)
+  (classifier): Linear(in_features=64, out_features=10, bias=True)
+)
+=> loading pretrain model './baseline/resnet20_cifar10_checkpoint.pth.tar'
+  **Test** Prec@1 92.450 Prec@5 99.790 Error@1 7.550
+  **Test** Prec@1 91.830 Prec@5 99.730 Error@1 8.170
+  **Test** Prec@1 91.980 Prec@5 99.770 Error@1 8.020
+  **Test** Prec@1 92.320 Prec@5 99.770 Error@1 7.680
+  **Test** Prec@1 91.490 Prec@5 99.690 Error@1 8.510
+  **Test** Prec@1 90.220 Prec@5 99.500 Error@1 9.780
+  **Test** Prec@1 91.910 Prec@5 99.790 Error@1 8.090
+  **Test** Prec@1 92.150 Prec@5 99.760 Error@1 7.850
+  **Test** Prec@1 91.660 Prec@5 99.780 Error@1 8.340
+  **Test** Prec@1 92.300 Prec@5 99.810 Error@1 7.700
+  **Test** Prec@1 92.360 Prec@5 99.800 Error@1 7.640
+  **Test** Prec@1 91.690 Prec@5 99.740 Error@1 8.310
+  **Test** Prec@1 92.360 Prec@5 99.780 Error@1 7.640
+  **Test** Prec@1 92.170 Prec@5 99.740 Error@1 7.830
+  **Test** Prec@1 92.450 Prec@5 99.790 Error@1 7.550
+  **Test** Prec@1 92.450 Prec@5 99.790 Error@1 7.550
+  **Test** Prec@1 92.450 Prec@5 99.790 Error@1 7.550
+  **Test** Prec@1 92.490 Prec@5 99.720 Error@1 7.510
+  **Test** Prec@1 92.460 Prec@5 99.720 Error@1 7.540
+  **Test** Prec@1 92.350 Prec@5 99.790 Error@1 7.650
+  **Test** Prec@1 89.810 Prec@5 99.400 Error@1 10.190
+  **Test** Prec@1 87.420 Prec@5 99.510 Error@1 12.580
+  **Test** Prec@1 92.520 Prec@5 99.810 Error@1 7.480
+  **Test** Prec@1 92.160 Prec@5 99.740 Error@1 7.840
+  **Test** Prec@1 91.070 Prec@5 99.800 Error@1 8.930
+  **Test** Prec@1 92.390 Prec@5 99.740 Error@1 7.610
+  **Test** Prec@1 92.450 Prec@5 99.770 Error@1 7.550
+  **Test** Prec@1 91.830 Prec@5 99.710 Error@1 8.170
+  **Test** Prec@1 92.440 Prec@5 99.760 Error@1 7.560
+  **Test** Prec@1 92.510 Prec@5 99.790 Error@1 7.490
+  **Test** Prec@1 92.480 Prec@5 99.770 Error@1 7.520
+  **Test** Prec@1 92.450 Prec@5 99.770 Error@1 7.550
+  **Test** Prec@1 92.530 Prec@5 99.790 Error@1 7.470
+  **Test** Prec@1 91.600 Prec@5 99.690 Error@1 8.400
+  **Test** Prec@1 91.920 Prec@5 99.760 Error@1 8.080
+  **Test** Prec@1 92.020 Prec@5 99.740 Error@1 7.980
+  **Test** Prec@1 91.960 Prec@5 99.770 Error@1 8.040
+  **Test** Prec@1 92.430 Prec@5 99.770 Error@1 7.570
+  **Test** Prec@1 92.020 Prec@5 99.830 Error@1 7.980
+  **Test** Prec@1 91.970 Prec@5 99.730 Error@1 8.030
+  **Test** Prec@1 91.350 Prec@5 99.650 Error@1 8.650
+  **Test** Prec@1 92.020 Prec@5 99.780 Error@1 7.980
+  **Test** Prec@1 92.310 Prec@5 99.800 Error@1 7.690
+  **Test** Prec@1 92.440 Prec@5 99.810 Error@1 7.560
+  **Test** Prec@1 91.020 Prec@5 99.480 Error@1 8.980
+  **Test** Prec@1 92.420 Prec@5 99.770 Error@1 7.580
+  **Test** Prec@1 92.490 Prec@5 99.790 Error@1 7.510
+  **Test** Prec@1 92.390 Prec@5 99.790 Error@1 7.610
+  **Test** Prec@1 92.420 Prec@5 99.800 Error@1 7.580
+  **Test** Prec@1 91.780 Prec@5 99.680 Error@1 8.220
+  **Test** Prec@1 91.410 Prec@5 99.710 Error@1 8.590
+  **Test** Prec@1 92.130 Prec@5 99.760 Error@1 7.870
+  **Test** Prec@1 89.420 Prec@5 99.690 Error@1 10.580
+  **Test** Prec@1 76.820 Prec@5 98.610 Error@1 23.180
+  **Test** Prec@1 86.980 Prec@5 98.760 Error@1 13.020
+  **Test** Prec@1 92.320 Prec@5 99.780 Error@1 7.680
+  **Test** Prec@1 92.330 Prec@5 99.790 Error@1 7.670
+  **Test** Prec@1 90.390 Prec@5 99.640 Error@1 9.610
+  **Test** Prec@1 92.420 Prec@5 99.790 Error@1 7.580
+  **Test** Prec@1 92.470 Prec@5 99.780 Error@1 7.530
+  **Test** Prec@1 92.370 Prec@5 99.780 Error@1 7.630
+  **Test** Prec@1 92.380 Prec@5 99.760 Error@1 7.620
+  **Test** Prec@1 59.280 Prec@5 92.180 Error@1 40.720
+  **Test** Prec@1 92.410 Prec@5 99.810 Error@1 7.590
+  **Test** Prec@1 92.490 Prec@5 99.800 Error@1 7.510
+  **Test** Prec@1 90.520 Prec@5 99.700 Error@1 9.480
+  **Test** Prec@1 91.490 Prec@5 99.710 Error@1 8.510
+  **Test** Prec@1 92.240 Prec@5 99.780 Error@1 7.760
+  **Test** Prec@1 92.030 Prec@5 99.770 Error@1 7.970
+  **Test** Prec@1 92.230 Prec@5 99.790 Error@1 7.770
+  **Test** Prec@1 92.310 Prec@5 99.780 Error@1 7.690
+  **Test** Prec@1 92.460 Prec@5 99.790 Error@1 7.540
+  **Test** Prec@1 92.150 Prec@5 99.790 Error@1 7.850
+  **Test** Prec@1 92.280 Prec@5 99.800 Error@1 7.720
+  **Test** Prec@1 92.530 Prec@5 99.760 Error@1 7.470
+  **Test** Prec@1 92.400 Prec@5 99.770 Error@1 7.600
+  **Test** Prec@1 92.440 Prec@5 99.800 Error@1 7.560
+  **Test** Prec@1 92.400 Prec@5 99.790 Error@1 7.600
+  **Test** Prec@1 92.450 Prec@5 99.820 Error@1 7.550
+  **Test** Prec@1 91.660 Prec@5 99.770 Error@1 8.340
+  **Test** Prec@1 92.430 Prec@5 99.790 Error@1 7.570
+  **Test** Prec@1 91.800 Prec@5 99.720 Error@1 8.200
+  **Test** Prec@1 90.080 Prec@5 99.630 Error@1 9.920
+  **Test** Prec@1 92.050 Prec@5 99.740 Error@1 7.950
+  **Test** Prec@1 91.990 Prec@5 99.700 Error@1 8.010
+  **Test** Prec@1 92.080 Prec@5 99.720 Error@1 7.920
+  **Test** Prec@1 91.310 Prec@5 99.680 Error@1 8.690
+  **Test** Prec@1 87.900 Prec@5 98.870 Error@1 12.100
+  **Test** Prec@1 91.360 Prec@5 99.670 Error@1 8.640
+  **Test** Prec@1 92.350 Prec@5 99.750 Error@1 7.650
+  **Test** Prec@1 92.230 Prec@5 99.770 Error@1 7.770
+  **Test** Prec@1 92.470 Prec@5 99.760 Error@1 7.530
+  **Test** Prec@1 92.300 Prec@5 99.750 Error@1 7.700
+  **Test** Prec@1 91.150 Prec@5 99.630 Error@1 8.850
+  **Test** Prec@1 92.350 Prec@5 99.760 Error@1 7.650
+  **Test** Prec@1 92.410 Prec@5 99.780 Error@1 7.590
+  **Test** Prec@1 90.340 Prec@5 99.450 Error@1 9.660
+  **Test** Prec@1 82.890 Prec@5 99.060 Error@1 17.110
+  **Test** Prec@1 81.710 Prec@5 98.910 Error@1 18.290
+  **Test** Prec@1 75.500 Prec@5 98.350 Error@1 24.500
+  **Test** Prec@1 91.510 Prec@5 99.700 Error@1 8.490
+  **Test** Prec@1 80.360 Prec@5 96.500 Error@1 19.640
+  **Test** Prec@1 91.270 Prec@5 99.710 Error@1 8.730
+  **Test** Prec@1 91.840 Prec@5 99.760 Error@1 8.160
+  **Test** Prec@1 91.600 Prec@5 99.710 Error@1 8.400
+  **Test** Prec@1 91.410 Prec@5 99.630 Error@1 8.590
+  **Test** Prec@1 92.400 Prec@5 99.780 Error@1 7.600
+  **Test** Prec@1 92.080 Prec@5 99.740 Error@1 7.920

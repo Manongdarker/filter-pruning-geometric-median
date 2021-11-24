@@ -171,7 +171,8 @@ def main():
 
     recorder = RecorderMeter(args.epochs)
     # optionally resume from a checkpoint
-
+    import copy
+    org_net = copy.deepcopy(net)
     m = Mask(net)
     m.init_length()
     print("-" * 10 + "one epoch begin" + "-" * 10)
@@ -181,33 +182,46 @@ def main():
 
     val_acc_1, val_los_1 = validate(test_loader, net, criterion, log)
 
-    print(" accu before is: %.3f %%" % val_acc_1)
-
-    m.model = net
-
-    m.init_mask(1.0, 0.0, args.dist_type,0,0)
-    m.do_mask()
-    m.do_similar_mask()
-    net = m.model
-    #    m.if_zero()
-    if args.use_cuda:
-        net = net.cuda()
-    val_acc_2, val_los_2 = validate(test_loader, net, criterion, log)
-    print(" accu after 0-0 is: %s %%" % val_acc_2)
-
+    # print(" accu before is: %.3f %%" % val_acc_1)
+    # m.model = net
+    # #
+    # m.init_mask(1.0, 0.0, args.dist_type,0,0)
+    # m.do_mask()
+    # m.do_similar_mask()
+    # net = m.model
+    # #    m.if_zero()
+    # if args.use_cuda:
+    #     net = net.cuda()
+    # val_acc_2, val_los_2 = validate(test_loader, net, criterion, log)
+    # print(" accu after 0-0 is: %s %%" % val_acc_2)
+    m.init_rate(1,0)
+    total = dict()
+    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt2
     for index, item in enumerate(m.model.parameters()):
         if index in m.mask_index:
             size = item.data.size()[0]
+            total[index] = []
             for i in range(size):
+                m.model = copy.deepcopy(org_net)
                 print("index is %s , seq is %s " %(index,i))
-                m.init_mask(args.rate_norm, args.rate_dist, args.dist_type , index , i)
+                # m.if_zero()
+                m.init_mask(1, 0, args.dist_type , index , i)
                 m.do_mask()
                 m.do_similar_mask()
+                # m.if_zero()
                 net = m.model
                 if args.use_cuda:
                     net = net.cuda()
                 val_acc_2, val_los_2 = validate(test_loader, net, criterion, log)
                 print(" accu after is: %s %%" % val_acc_2)
+                total[index].append(val_acc_2)
+                plt.plot(total[index])
+                plt.savefig('./result/' +str(index)+"_im.jpg")
+                plt.close()
+                plt2.plot(total[index])
+    plt2.savefig("./result/total_im.jpg")
+
 
 
     m.init_mask(args.rate_norm, args.rate_dist, args.dist_type)
@@ -470,25 +484,19 @@ class Mask:
             filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
             indices = torch.LongTensor(filter_large_index).cpu()
-            weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
+            weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu()
             # for euclidean distance
-            if dist_type == "l2" or "l1":
-                similar_matrix = distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'euclidean')
-                cov_matrix = np.cov(weight_vec_after_norm)
-                e_vals , e_vecs = np.linalg.eig(cov_matrix)
 
-            elif dist_type == "cos":  # for cos similarity
-                similar_matrix = 1 - distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'cosine')
-            similar_sum = np.sum(np.abs(similar_matrix), axis=0)
-
+            norm1 = torch.norm(weight_vec_after_norm, 2, 1)
+            norm1_np = norm1.cpu().numpy()
             # for distance similar: get the filter index with largest similarity == small distance
-            similar_large_index = similar_sum.argsort()[similar_pruned_num:]
+            chn = weight_torch.size()[0]
             if similar_pruned_num > 0:
-                similar_small_index = similar_sum.argsort()[max_i]
-                similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+                fft_large_index = [norm1_np.argsort()[::-1][ max_i ]]
+                fft_large_for_filter =  [filter_large_index[i] for i in fft_large_index]
             else:
-                similar_small_index = []
-                similar_index_for_filter = []
+                fft_large_index = []
+                fft_large_for_filter = []
 
             # print('filter_large_index', filter_large_index)
             # print('filter_small_index', filter_small_index)
@@ -497,12 +505,14 @@ class Mask:
             # print('similar_small_index', similar_small_index)
             # print('similar_index_for_filter', similar_index_for_filter)
             kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
-            for x in range(0, len(similar_index_for_filter)):
+            for x in range(0, len(fft_large_for_filter)):
                 codebook[
-                similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
+                fft_large_for_filter[x] * kernel_length: (fft_large_for_filter[x] + 1) * kernel_length] = 0
             # print("similar index done")
         else:
             pass
+        zeros = len(codebook) - np.count_nonzero(codebook)
+        nonzeros = np.count_nonzero(codebook)
         return codebook
 
         # optimize for cov eig
@@ -637,7 +647,7 @@ class Mask:
                 a = item.data.view(self.model_length[index])
                 b = a * self.mat[index]
                 item.data = b.view(self.model_size[index])
-        print("mask Done")
+        # print("mask Done")
 
     def do_similar_mask(self):
         for index, item in enumerate(self.model.parameters()):
@@ -645,7 +655,7 @@ class Mask:
                 a = item.data.view(self.model_length[index])
                 b = a * self.similar_matrix[index]
                 item.data = b.view(self.model_size[index])
-        print("mask similar Done")
+        # print("mask similar Done")
 
     def do_grad_mask(self):
         for index, item in enumerate(self.model.parameters()):
