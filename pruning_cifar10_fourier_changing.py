@@ -497,6 +497,8 @@ class Mask:
             filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
             similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
 
+            print("similar_pruned_num", similar_pruned_num)
+
             fft2 = np.fft.fft2(weight_torch.cpu())
             ff2shift = np.fft.fftshift(fft2)
             fft2_shift_abs = np.abs(ff2shift)
