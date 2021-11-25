@@ -667,7 +667,7 @@ class Mask:
                 scale = min(1, scale)
 
                 self.similar_matrix[index] = self.get_filter_similar(item.data, self.compress_rate[index],
-                                                                     self.distance_rate[index] ,
+                                                                     self.distance_rate[index] * scale,
                                                                      self.model_length[index], dist_type=dist_type)
                 self.similar_matrix[index] = self.convert2tensor(self.similar_matrix[index])
                 if args.use_cuda:

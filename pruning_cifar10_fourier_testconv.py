@@ -448,10 +448,12 @@ class Mask:
                 filter_pruned_num = 0
                 similar_pruned_num = 0
 
-            fft2 = np.fft.fft2(weight_torch.cpu()).real[:]
-            fft2 = torch.Tensor(fft2)
-            weight_vec = fft2.view(fft2.size()[0], -1)
-            # weight_vec = weight_torch.view(weight_torch.size()[0], -1)
+            fft2 = np.fft.fft2(weight_torch.cpu())
+            ff2shift = np.fft.fftshift(fft2)
+            fft2_shift_abs = np.abs(ff2shift)
+
+            fft2 = torch.Tensor(fft2_shift_abs)
+            weight_vec = fft2.contiguous().view(fft2.size()[0], -1)
 
             if dist_type == "l2" or "cos":
                 norm = torch.norm(weight_vec, 2, 1)
@@ -468,17 +470,26 @@ class Mask:
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu()
             # for euclidean distance
 
-            norm1 = torch.norm(weight_vec_after_norm, 2, 1)
-            norm1_np = norm1.cpu().numpy()
-            # for distance similar: get the filter index with largest similarity == small distance
-            chn = weight_torch.size()[0]
-            if similar_pruned_num > 0:
-                fft_large_index = [norm1_np.argsort()[::-1][ max_i ]]
-                fft_large_for_filter =  [filter_large_index[i] for i in fft_large_index]
-            else:
-                fft_large_index = []
-                fft_large_for_filter = []
+            similar_matrix = distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'euclidean')
+            similar_sum = np.sum(np.abs(similar_matrix), axis=0)
 
+            similar_large_index = similar_sum.argsort()[similar_pruned_num:]
+            similar_small_index = similar_sum.argsort()[:  similar_pruned_num]
+            # for distance similar: get the filter index with largest similarity == small distance
+            # chn = weight_torch.size()[0]
+
+            norm_1 = torch.norm(weight_vec_after_norm, 2, 1)
+            norm_np_1 = norm_1.cpu().numpy()
+
+            if similar_pruned_num > 0:
+                similar_small_index = [similar_sum.argsort()[ max_i ]]
+                similar_large_for_filter =  [filter_large_index[i] for i in similar_small_index]
+                print("dist:",similar_sum[ similar_small_index ] ,"l2:", norm_np_1[similar_small_index] )
+
+            else:
+                similar_small_index = []
+                similar_large_for_filter = []
+            # fft_large_for_filter = [max_i] # 10 9
             # print('filter_large_index', filter_large_index)
             # print('filter_small_index', filter_small_index)
             # print('similar_sum', similar_sum)
@@ -486,9 +497,9 @@ class Mask:
             # print('similar_small_index', similar_small_index)
             # print('similar_index_for_filter', similar_index_for_filter)
             kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
-            for x in range(0, len(fft_large_for_filter)):
+            for x in range(0, len(similar_small_index)):
                 codebook[
-                fft_large_for_filter[x] * kernel_length: (fft_large_for_filter[x] + 1) * kernel_length] = 0
+                similar_small_index[x] * kernel_length: (similar_small_index[x] + 1) * kernel_length] = 0
             # print("similar index done")
         else:
             pass
