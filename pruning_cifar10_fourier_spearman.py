@@ -501,20 +501,20 @@ class Mask:
             weight_vec = weight_torch.view(weight_torch.size()[0], -1)
 
             if dist_type == "l2" or "cos":
-                norm = torch.norm(weight_torch, 2, 1)
+                norm = torch.norm(weight_vec, 2, 1)
                 norm_np = norm.cpu().numpy()
             elif dist_type == "l1":
-                norm = torch.norm(weight_torch, 1, 1)
+                norm = torch.norm(weight_vec, 1, 1)
                 norm_np = norm.cpu().numpy()
             filter_small_index = []
             filter_large_index = []
             filter_large_index = norm_np.argsort()[filter_pruned_num:]
             filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
-            indices = torch.LongTensor(filter_large_index).cpu()
+            indices = torch.LongTensor(filter_large_index).cuda()
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
 
-            fft2 = np.fft.fft2(weight_vec_after_norm.cpu())
+            fft2 = np.fft.fft2(weight_vec_after_norm)
             ff2shift = np.fft.fftshift(fft2)
             fft2_shift_abs = np.abs(ff2shift)
 
@@ -523,30 +523,48 @@ class Mask:
             spearman = df.corr('spearman')
             spearman_np = spearman.to_numpy()
 
-            # for euclidean distance
-            if dist_type == "l2" or "l1":
-                similar_matrix = distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'euclidean')
+            spearman_thresh = 0.7
+            selected = []
+            minmum_value = -1000
+            for i in range(len(spearman_np)):
+                if i in selected:
+                    break
 
-            elif dist_type == "cos":  # for cos similarity
-                similar_matrix = 1 - distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'cosine')
-            similar_sum = np.sum(np.abs(similar_matrix), axis=0)
+                for j in range(i+1 ,len(spearman_np) ):
+                    line = spearman_np[i][i+1:]
+                    max_value = line.max()
+                    max_index = line.argmax()
+                    if max_value > spearman_thresh:
+                        index = max_index + i + 1
+                        if index not in selected:
+                            selected.append(index)
+                            break
+                        else:
+                            line[max_index] = minmum_value
+                    else:
+                        break
 
             # for distance similar: get the filter index with largest similarity == small distance
-            similar_large_index = similar_sum.argsort()[similar_pruned_num:]
-            similar_small_index = similar_sum.argsort()[:  similar_pruned_num]
-            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+            similar_small_index = []
+            if len(selected) >= similar_pruned_num:
+                similar_small_index = selected[:similar_pruned_num]
+            else:
+                similar_small_index = selected
+                for i in (range(0,len(spearman_np))):
+                    if i not in selected:
+                        similar_small_index.append(i)
+                        if len(selected) == similar_pruned_num:
+                            break
 
-            print('filter_large_index', filter_large_index)
-            print('filter_small_index', filter_small_index)
-            print('similar_sum', similar_sum)
-            print('similar_large_index', similar_large_index)
-            print('similar_small_index', similar_small_index)
+            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+            print('selected', selected)
             print('similar_index_for_filter', similar_index_for_filter)
+            print("filter_large_index",filter_large_index)
             kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
             for x in range(0, len(similar_index_for_filter)):
                 codebook[
                 similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
-            print("similar index done")
+            # print("similar index done")
         else:
             pass
         return codebook
