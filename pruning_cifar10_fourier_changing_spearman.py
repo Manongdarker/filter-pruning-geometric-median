@@ -10,6 +10,7 @@ from utils import AverageMeter, RecorderMeter, time_string, convert_secs2time, t
 import models
 import numpy as np
 import pickle
+import pandas as pd
 from scipy.spatial import distance
 import pdb
 
@@ -57,6 +58,7 @@ parser.add_argument('--use_state_dict', dest='use_state_dict', action='store_tru
 parser.add_argument('--use_pretrain', dest='use_pretrain', action='store_true', help='use pre-trained model or not')
 parser.add_argument('--pretrain_path', default='', type=str, help='..path of pre-trained model')
 parser.add_argument('--dist_type', default='l2', type=str, choices=['l2', 'l1', 'cos'], help='distance type of GM')
+parser.add_argument('--spm_thresh', default=0.7, type=float, help='spearman thresh')
 
 args = parser.parse_args()
 args.use_cuda = args.ngpu > 0 and torch.cuda.is_available()
@@ -91,6 +93,7 @@ def main():
     print_log("use pretrain: {}".format(args.use_pretrain), log)
     print_log("Pretrain path: {}".format(args.pretrain_path), log)
     print_log("Dist type: {}".format(args.dist_type), log)
+    print_log("spearman thresh: {}".format(args.spm_thresh), log)
 
     # Init dataset
     if not os.path.isdir(args.data_path):
@@ -490,22 +493,13 @@ class Mask:
             pass
         return filter_small_index, filter_large_index
 
-    # optimize for fast ccalculation
     def get_filter_similar(self, weight_torch, compress_rate, distance_rate, length, dist_type="l2"):
         codebook = np.ones(length)
         if len(weight_torch.size()) == 4:
             filter_pruned_num = int(weight_torch.size()[0] * (1 - compress_rate))
             similar_pruned_num = int(weight_torch.size()[0] * distance_rate)
 
-            print("similar_pruned_num", similar_pruned_num)
-
-            fft2 = np.fft.fft2(weight_torch.cpu())
-            ff2shift = np.fft.fftshift(fft2)
-            fft2_shift_abs = np.abs(ff2shift)
-
-            fft2 = torch.Tensor(fft2_shift_abs)
-            weight_vec = fft2.contiguous().view(fft2.size()[0], -1)
-
+            weight_vec = weight_torch.view(weight_torch.size()[0], -1)
 
             if dist_type == "l2" or "cos":
                 norm = torch.norm(weight_vec, 2, 1)
@@ -518,32 +512,59 @@ class Mask:
             filter_large_index = norm_np.argsort()[filter_pruned_num:]
             filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
-            indices = torch.LongTensor(filter_large_index).cpu()
+            indices = torch.LongTensor(filter_large_index).cuda()
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
-            # for euclidean distance
-            if dist_type == "l2" or "l1":
-                similar_matrix = distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'euclidean')
 
-            elif dist_type == "cos":  # for cos similarity
-                similar_matrix = 1 - distance.cdist(weight_vec_after_norm, weight_vec_after_norm, 'cosine')
-            similar_sum = np.sum(np.abs(similar_matrix), axis=0)
+            fft2 = np.fft.fft2(weight_vec_after_norm)
+            ff2shift = np.fft.fftshift(fft2)
+            fft2_shift_abs = np.abs(ff2shift)
+
+            df = pd.DataFrame(fft2_shift_abs.transpose())
+            spearman = df.corr('spearman')
+            spearman_np = spearman.to_numpy()
+
+            spearman_thresh = args.spm_thresh
+            selected = []
+            minmum_value = -1000
+            for i in range(len(spearman_np)):
+                if i in selected:
+                    break
+
+                for j in range(i + 1, len(spearman_np)):
+                    line = spearman_np[i][i + 1:]
+                    max_value = line.max()
+                    max_index = line.argmax()
+                    if max_value > spearman_thresh:
+                        index = max_index + i + 1
+                        if index not in selected:
+                            selected.append(index)
+                            break
+                        else:
+                            line[max_index] = minmum_value
+                    else:
+                        break
 
             # for distance similar: get the filter index with largest similarity == small distance
-            similar_large_index = similar_sum.argsort()[similar_pruned_num:]
-            similar_small_index = similar_sum.argsort()[:  similar_pruned_num]
-            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+            similar_small_index = []
+            if len(selected) >= similar_pruned_num:
+                similar_small_index = selected[:similar_pruned_num]
+            else:
+                similar_small_index = selected
+                for i in (range(0, len(spearman_np))):
+                    if i not in selected:
+                        similar_small_index.append(i)
+                        if len(selected) == similar_pruned_num:
+                            break
 
-            print('filter_large_index', filter_large_index)
-            print('filter_small_index', filter_small_index)
-            print('similar_sum', similar_sum)
-            print('similar_large_index', similar_large_index)
-            print('similar_small_index', similar_small_index)
+            similar_index_for_filter = [filter_large_index[i] for i in similar_small_index]
+            print('selected', selected)
             print('similar_index_for_filter', similar_index_for_filter)
+            print("filter_large_index", filter_large_index)
             kernel_length = weight_torch.size()[1] * weight_torch.size()[2] * weight_torch.size()[3]
             for x in range(0, len(similar_index_for_filter)):
                 codebook[
                 similar_index_for_filter[x] * kernel_length: (similar_index_for_filter[x] + 1) * kernel_length] = 0
-            print("similar index done")
+            # print("similar index done")
         else:
             pass
         return codebook
@@ -665,11 +686,19 @@ class Mask:
                 #     self.get_filter_index(item.data, self.compress_rate[index], self.model_length[index])
 
                 # mask for distance criterion
-                scale = epoch_time * 1.5
-                scale = min(1, scale)
+                # scale = epoch_time * 1.5
+                # scale = min(1, scale)
 
-                self.similar_matrix[index] = self.get_filter_similar(item.data, self.compress_rate[index],
-                                                                     self.distance_rate[index] * scale,
+                scale = (epoch_time - 0.1) * 5
+                scale = max(scale, 0)
+                scale = min(scale, 1)
+
+                com = self.compress_rate[index]
+                new_compress = com + (1 - scale) * (1 - com)
+
+                new_dist = scale * self.distance_rate[index]
+
+                self.similar_matrix[index] = self.get_filter_similar(item.data, new_compress, new_dist,
                                                                      self.model_length[index], dist_type=dist_type)
                 self.similar_matrix[index] = self.convert2tensor(self.similar_matrix[index])
                 if args.use_cuda:

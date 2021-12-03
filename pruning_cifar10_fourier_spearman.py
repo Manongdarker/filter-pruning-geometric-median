@@ -58,6 +58,7 @@ parser.add_argument('--use_state_dict', dest='use_state_dict', action='store_tru
 parser.add_argument('--use_pretrain', dest='use_pretrain', action='store_true', help='use pre-trained model or not')
 parser.add_argument('--pretrain_path', default='', type=str, help='..path of pre-trained model')
 parser.add_argument('--dist_type', default='l2', type=str, choices=['l2', 'l1', 'cos'], help='distance type of GM')
+parser.add_argument('--spm_thresh', default=0.7, type=float, help='spearman thresh')
 
 args = parser.parse_args()
 args.use_cuda = args.ngpu > 0 and torch.cuda.is_available()
@@ -92,6 +93,7 @@ def main():
     print_log("use pretrain: {}".format(args.use_pretrain), log)
     print_log("Pretrain path: {}".format(args.pretrain_path), log)
     print_log("Dist type: {}".format(args.dist_type), log)
+    print_log("spearman thresh: {}".format(args.spm_thresh), log)
 
     # Init dataset
     if not os.path.isdir(args.data_path):
@@ -523,7 +525,7 @@ class Mask:
             spearman = df.corr('spearman')
             spearman_np = spearman.to_numpy()
 
-            spearman_thresh = 0.7
+            spearman_thresh = args.spm_thresh
             selected = []
             minmum_value = -1000
             for i in range(len(spearman_np)):

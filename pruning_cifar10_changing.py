@@ -608,6 +608,7 @@ class Mask:
 
                 com = self.compress_rate[index]
                 new_compress = com + (1 - scale1)*(1 - com)
+
                 self.similar_matrix[index] = self.get_filter_similar(item.data, new_compress,
                                                                      self.distance_rate[index] *  scale1,
                                                                      self.model_length[index], dist_type=dist_type)
