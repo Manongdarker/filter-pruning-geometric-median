@@ -526,23 +526,19 @@ class Mask:
             spearman_thresh = args.spm_thresh
             selected = []
             minmum_value = -1000
-            for i in range(len(spearman_np)):
+            not_select = []
+            for i in range(len(spearman_np) - 1):
                 if i in selected:
-                    break
+                    continue
+                if i in not_select:
+                    continue
 
-                for j in range(i + 1, len(spearman_np)):
-                    line = spearman_np[i][i + 1:]
-                    max_value = line.max()
-                    max_index = line.argmax()
-                    if max_value > spearman_thresh:
-                        index = max_index + i + 1
-                        if index not in selected:
-                            selected.append(index)
-                            break
-                        else:
-                            line[max_index] = minmum_value
-                    else:
-                        break
+                line = spearman_np[i][i + 1:]
+                max_value = line.max()
+                max_index = line.argmax()
+                if max_value > spearman_thresh:
+                    selected.append(i)
+                    not_select.append(max_index + i + 1)
 
             # for distance similar: get the filter index with largest similarity == small distance
             similar_small_index = []
@@ -670,7 +666,7 @@ class Mask:
 
     #        self.mask_index =  [x for x in range (0,330,3)]
 
-    def init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type , epoch_time = 0):
+    def                   init_mask(self, rate_norm_per_layer, rate_dist_per_layer, dist_type , epoch_time = 0):
         self.init_rate(rate_norm_per_layer, rate_dist_per_layer)
         for index, item in enumerate(self.model.parameters()):
             if index in self.mask_index:
@@ -689,7 +685,7 @@ class Mask:
                 # scale = epoch_time * 1.5
                 # scale = min(1, scale)
 
-                scale = (epoch_time - 0.1) * 5
+                scale = (epoch_time - 0.2) * 4
                 scale = max(scale, 0)
                 scale = min(scale, 1)
 

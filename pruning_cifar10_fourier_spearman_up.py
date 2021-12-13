@@ -513,7 +513,7 @@ class Mask:
             filter_large_index = norm_np.argsort()[filter_pruned_num:]
             filter_small_index = norm_np.argsort()[:filter_pruned_num]
 
-            indices = torch.LongTensor(filter_large_index) #.cuda()
+            indices = torch.LongTensor(filter_large_index).cuda()
             weight_vec_after_norm = torch.index_select(weight_vec, 0, indices).cpu().numpy()
 
             fft2 = np.fft.fft2(weight_vec_after_norm)
@@ -528,23 +528,19 @@ class Mask:
             spearman_thresh = args.spm_thresh
             selected = []
             minmum_value = -1000
-            for i in reversed(range(len(spearman_np))):
+            not_select = []
+            for i in range(len(spearman_np) - 1):
                 if i in selected:
-                    break
+                    continue
+                if i in not_select:
+                    continue
 
-                line = spearman_np[i][:i]
-                for j in range(0 ,i):
-                    max_value = line.max()
-                    max_index = line.argmax()
-                    if max_value > spearman_thresh:
-                        index = max_index
-                        if index not in selected:
-                            selected.append(index)
-                            break
-                        else:
-                            line[max_index] = minmum_value
-                    else:
-                        break
+                line = spearman_np[i][i + 1:]
+                max_value = line.max()
+                max_index = line.argmax()
+                if max_value > spearman_thresh:
+                    selected.append(i)
+                    not_select.append(max_index + i + 1)
 
             # for distance similar: get the filter index with largest similarity == small distance
             similar_small_index = []
